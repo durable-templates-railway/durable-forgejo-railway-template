@@ -1,0 +1,60 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "env": {
+    "POSTGRES_PASSWORD": "${{secret(16)}}",
+    "FORGEJO_SECRET_KEY": "${{secret(32)}}"
+  },
+  "services": {
+    "postgres": {
+      "image": "postgres:16-alpine",
+      "env": {
+        "POSTGRES_USER": "forgejo",
+        "POSTGRES_DB": "forgejo"
+      },
+      "volumes": [
+        {
+          "name": "postgres-data",
+          "mountPath": "/var/lib/postgresql/data"
+        }
+      ],
+      "healthcheck": {
+        "path": "/",
+        "timeout": 100
+      }
+    },
+    "forgejo": {
+      "image": "codeberg.org/forgejo/forgejo:${FORGEJO_VERSION:-13}",
+      "env": {
+        "PORT": "$PORT",
+        "FORGEJO__server__HTTP_PORT": "$PORT",
+        "FORGEJO__server__DOMAIN": "$RAILWAY_PUBLIC_DOMAIN",
+        "FORGEJO__server__ROOT_URL": "https://$RAILWAY_PUBLIC_DOMAIN/",
+        "FORGEJO__server__SSH_DOMAIN": "$RAILWAY_PUBLIC_DOMAIN",
+        "FORGEJO__server__SSH_PORT": "22",
+        "FORGEJO__database__DB_TYPE": "postgres",
+        "FORGEJO__database__HOST": "postgres.railway.internal:5432",
+        "FORGEJO__database__NAME": "forgejo",
+        "FORGEJO__database__USER": "forgejo",
+        "FORGEJO__database__PASSWD": "$POSTGRES_PASSWORD",
+        "FORGEJO__security__INSTALL_LOCK": "true",
+        "FORGEJO__security__SECRET_KEY": "$FORGEJO_SECRET_KEY",
+        "FORGEJO__service__DISABLE_REGISTRATION": "${FORGEJO_DISABLE_REGISTRATION:-false}",
+        "FORGEJO__service__REQUIRE_SIGNIN_VIEW": "false",
+        "FORGEJO__actions__ENABLED": "true",
+        "FORGEJO__packages__ENABLED": "true",
+        "USER_UID": "1000",
+        "USER_GID": "1000"
+      },
+      "volumes": [
+        {
+          "name": "forgejo-data",
+          "mountPath": "/data"
+        }
+      ],
+      "healthcheck": {
+        "path": "/api/healthz",
+        "timeout": 100
+      }
+    }
+  }
+}

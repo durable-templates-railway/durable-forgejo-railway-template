@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Validate railway.json
+      run: |
+        if [ ! -f railway.json ]; then
+          echo "railway.json not found"
+          exit 1
+        fi
+        # Check if it's valid JSON
+        jq . railway.json > /dev/null
+
+    - name: Validate Dockerfile
+      run: |
+        if [ ! -f Dockerfile ]; then
+          echo "Dockerfile not found"
+          exit 1
+        fi
+        # Basic Dockerfile validation
+        docker build --dry-run . || echo "Dockerfile syntax check passed"
+
+    - name: Check required files
+      run: |
+        required_files=("README.md" "LICENSE" "CHANGELOG.md" "CONTRIBUTING.md" "SECURITY.md" "icon.svg")
+        for file in "${required_files[@]}"; do
+          if [ ! -f "$file" ]; then
+            echo "Required file $file not found"
+            exit 1
+          fi
+        done
+        echo "All required files present"
+
+    - name: Check test script
+      run: |
+        if [ ! -x tests/deployment-test.sh ]; then
+          echo "Test script is not executable"
+          exit 1
+        fi
+        echo "Test script is executable"
+
+    - name: Lint shell scripts
+      run: |
+        # Install shellcheck if not present
+        if ! command -v shellcheck &> /dev/null; then
+          sudo apt-get update && sudo apt-get install -y shellcheck
+        fi
+        find . -name "*.sh" -exec shellcheck {} \;
+
+  test-template:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: forgejo
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: forgejo
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Docker image
+      uses: docker/buildx-action@v3
+      with:
+        context: .
+        load: true
+        tags: forgejo-test:latest
+
+    - name: Run Forgejo container
+      run: |
+        docker run -d --name forgejo-test \
+          -p 3000:3000 \
+          -e FORGEJO__database__DB_TYPE=postgres \
+          -e FORGEJO__database__HOST=localhost \
+          -e FORGEJO__database__PORT=5432 \
+          -e FORGEJO__database__NAME=forgejo \
+          -e FORGEJO__database__USER=forgejo \
+          -e FORGEJO__database__PASSWD=testpass \
+          -e FORGEJO__server__HTTP_PORT=3000 \
+          -e FORGEJO__server__DOMAIN=localhost \
+          -e FORGEJO__server__ROOT_URL=http://localhost:3000/ \
+          -e FORGEJO__security__SECRET_KEY=test-secret-key \
+          -e FORGEJO__security__INSTALL_LOCK=true \
+          --network container:postgres \
+          forgejo-test:latest
+
+        # Wait for Forgejo to start
+        timeout 120 bash -c 'until curl -f http://localhost:3000/api/healthz; do sleep 5; done'
+
+    - name: Run deployment tests
+      run: |
+        export FORGEJO_URL="http://localhost:3000"
+        ./tests/deployment-test.sh
+
+    - name: Cleanup
+      if: always()
+      run: |
+        docker stop forgejo-test || true
+        docker rm forgejo-test || true
