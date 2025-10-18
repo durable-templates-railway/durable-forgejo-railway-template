@@ -38,5 +38,8 @@ EXPOSE 3000 2222
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD curl -f http://localhost:3000/api/v1/version || exit 1
 
+# Run as non-root user
+USER 1000:1000
+
 # Start Forgejo
 CMD ["/usr/local/bin/gitea", "web"]
