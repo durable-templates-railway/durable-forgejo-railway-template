@@ -21,12 +21,25 @@ Forgejo is a painless self-hosted Git service that's a community-driven fork of 
 This Railway template deploys Forgejo as a multi-service application with the following components:
 
 ### Core Services
-- **Forgejo**: All-in-one Git service
-- **PostgreSQL**: Primary database for application data
+- **Forgejo** (`forgejo/`): All-in-one Git service
+- **PostgreSQL** (`postgresql/`): Primary database for application data
 
 ### Service Dependencies
 - Forgejo depends on PostgreSQL for data storage
 - All services communicate via Railway's private networking
+
+### Directory Structure
+```
+.
+├── forgejo/
+│   ├── Dockerfile          # Custom Forgejo image configuration
+│   ├── railway.json        # Forgejo service configuration
+│   └── railway.toml        # Forgejo deployment settings
+├── postgresql/
+│   ├── railway.json        # PostgreSQL service configuration
+│   └── railway.toml        # PostgreSQL deployment settings
+└── README.md
+```
 
 This architecture provides a complete, lightweight Git hosting solution suitable for individuals and teams.
 
@@ -45,10 +58,26 @@ Deploy Forgejo to Railway in minutes:
 ### Railway (Recommended)
 
 1. Click "Deploy on Railway" to create a new Railway project
-2. Railway will automatically generate database credentials and deploy all services
-3. Wait for initial setup to complete
-4. Access your application at the generated Railway domain
-5. Complete the setup wizard (most settings are pre-configured)
+2. Railway will create two services from the `forgejo/` and `postgresql/` directories
+3. Set the following environment variables for the Forgejo service:
+   - `FORGEJO__server__DOMAIN`: `${{RAILWAY_PUBLIC_DOMAIN}}`
+   - `FORGEJO__server__ROOT_URL`: `https://${{RAILWAY_PUBLIC_DOMAIN}}/`
+   - `FORGEJO__server__HTTP_PORT`: `${{PORT}}`
+   - `FORGEJO__database__DB_TYPE`: `postgres`
+   - `FORGEJO__database__HOST`: `${{postgresql.RAILWAY_PRIVATE_DOMAIN}}:5432`
+   - `FORGEJO__database__NAME`: `forgejo`
+   - `FORGEJO__database__USER`: `forgejo`
+   - `FORGEJO__database__PASSWD`: `${{postgresql.POSTGRES_PASSWORD}}`
+   - `FORGEJO__security__INSTALL_LOCK`: `true`
+   - `FORGEJO__security__SECRET_KEY`: Generate a random 32-character hex string
+   - `USER_UID`: `1000`
+   - `USER_GID`: `1000`
+4. Set the following environment variables for the PostgreSQL service:
+   - `POSTGRES_USER`: `forgejo`
+   - `POSTGRES_PASSWORD`: Generate a random password
+   - `POSTGRES_DB`: `forgejo`
+5. Wait for deployment completion
+6. Access your Forgejo instance at the Railway-provided domain
 
 ### Docker
 
