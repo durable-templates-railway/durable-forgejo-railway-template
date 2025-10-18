@@ -1,6 +1,6 @@
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile"
+dockerfilePath = "forgejo/Dockerfile"
 
 [deploy]
 startCommand = "/usr/local/bin/gitea web"
